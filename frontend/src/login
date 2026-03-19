@@ -1,0 +1,1773 @@
+import React, { useState, useEffect, useRef } from "react";
+import axios from "axios";
+import { toast, Toaster } from "react-hot-toast";
+import { useLocation } from "react-router-dom";
+import { FaDownload } from "react-icons/fa";
+import { RiUserShared2Fill } from "react-icons/ri";
+import {
+  FaUserTag,
+  FaUserPlus,
+  FaUsers,
+  FaArrowLeft,
+  FaTrash,
+  FaEdit,
+  FaEye,
+  FaEyeSlash,
+} from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
+import { FaChevronLeft, FaChevronRight } from "react-icons/fa"; // Added for pagination icons
+
+const BASE_URL = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
+
+const user = JSON.parse(localStorage.getItem("user"));
+
+const token = localStorage.getItem("access_token");
+
+const api = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
+  },
+});
+
+/* ---------- shared styles ---------- */
+const input = "w-full p-2 border rounded";
+const pill = (active) =>
+  `flex items-center gap-2 px-6 py-2 rounded-full font-semibold transition ${
+    active
+      ? "bg-yellow-500 text-white" // ← changed only this line
+      : "bg-white text-green-700 hover:bg-green-50 shadow"
+  }`;
+const IconWrap = ({ children }) => (
+  <span className="p-2 rounded-full bg-green-100 text-green-700">
+    {children}
+  </span>
+);
+
+/* ---------- small helpers for tables ---------- */
+const Th = ({ children, ...rest }) => (
+  <th className="px-3 py-2 border" {...rest}>
+    {children}
+  </th>
+);
+const Td = ({ children, ...rest }) => (
+  <td className="px-3 py-2" {...rest}>
+    {children}
+  </td>
+);
+
+function DistrictMultiSelectWithCheckbox({
+  districts,
+  selectedDistricts,
+  onChange,
+  errors,
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef(null);
+
+  const handleToggle = (districtName) => {
+    const newSelection = selectedDistricts.includes(districtName)
+      ? selectedDistricts.filter((d) => d !== districtName)
+      : [...selectedDistricts, districtName];
+
+    onChange(newSelection);
+  };
+
+  const filteredDistricts = districts.filter((d) =>
+    d.district_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [setIsOpen]);
+
+  return (
+    <div ref={dropdownRef}>
+      <label className="text-sm font-semibold block mb-1">District *</label>
+
+      {/* Dropdown */}
+      <div className="relative">
+        <div
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full p-2 border rounded cursor-pointer bg-white flex justify-between items-center"
+        >
+          <span className="text-gray-500">
+            {selectedDistricts.length > 0
+              ? `${selectedDistricts.length} District Selected`
+              : "Select District"}
+          </span>
+          <span className="text-gray-400">▼</span>
+        </div>
+
+        {isOpen && (
+          <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-auto">
+            {/* Search */}
+            <div className="p-2 border-b sticky top-0 bg-white">
+              <input
+                type="text"
+                placeholder="Search districts..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full p-2 border rounded text-sm"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+
+            {/* ✅ Select All Checkbox - Top of List */}
+            <div className="p-2 border-b bg-gray-50  top-[60px]">
+              <label className="flex items-center gap-2 p-2 hover:bg-gray-100 cursor-pointer rounded font-semibold">
+                <input
+                  type="checkbox"
+                  checked={
+                    selectedDistricts.length === filteredDistricts.length &&
+                    filteredDistricts.length > 0
+                  }
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      // Select all filtered districts
+                      const allFiltered = filteredDistricts.map(
+                        (d) => d.district_name
+                      );
+                      onChange([
+                        ...new Set([...selectedDistricts, ...allFiltered]),
+                      ]);
+                    } else {
+                      // Deselect all filtered districts
+                      const filteredNames = filteredDistricts.map(
+                        (d) => d.district_name
+                      );
+                      onChange(
+                        selectedDistricts.filter(
+                          (name) => !filteredNames.includes(name)
+                        )
+                      );
+                    }
+                  }}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <span className="text-sm text-blue-700">
+                  Select All {searchTerm && `(${filteredDistricts.length} filtered)`}
+                </span>
+              </label>
+            </div>
+
+            {/* List */}
+            <div className="p-2">
+              {filteredDistricts.length === 0 ? (
+                <div className="text-center text-gray-500 py-2">
+                  No districts found
+                </div>
+              ) : (
+                filteredDistricts.map((d) => (
+                  <label
+                    key={d.id}
+                    className="flex items-center gap-2 p-2 hover:bg-gray-100 cursor-pointer rounded"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedDistricts.includes(d.district_name)}
+                      onChange={() => handleToggle(d.district_name)}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                    <span className="text-sm">{d.district_name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+
+            {/* Buttons */}
+            <div className="p-2 border-t bg-gray-50 flex gap-2"></div>
+          </div>
+        )}
+      </div>
+
+      {/* Error (API uses district_ids) */}
+      {errors?.district_ids && (
+        <p className="text-red-500 text-sm mt-1">{errors.district_ids[0]}</p>
+      )}
+    </div>
+  );
+}
+
+// ✅ NEW: Multi-Select Ghat Component
+function GhatMultiSelectWithCheckbox({
+  ghats,
+  selectedGhats,
+  onChange,
+  errors,
+  disabled,
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef(null);
+
+  const handleToggle = (ghatId) => {
+    const newSelection = selectedGhats.includes(ghatId)
+      ? selectedGhats.filter((g) => g !== ghatId)
+      : [...selectedGhats, ghatId];
+
+    onChange(newSelection);
+  };
+
+  const filteredGhats = ghats.filter((g) =>
+    g.ghaat_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [setIsOpen]);
+
+  return (
+    <div>
+      <label className="text-sm font-semibold block mb-1">Ghaat *</label>
+
+      <div ref={dropdownRef} className="relative">
+        <div
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          className={`w-full p-2 border rounded cursor-pointer bg-white flex justify-between items-center ${
+            disabled ? "opacity-50 cursor-not-allowed" : ""
+          }`}
+        >
+          <span className="text-gray-500">
+            {selectedGhats.length > 0
+              ? `${selectedGhats.length} Ghat Selected`
+              : disabled
+              ? "Select Districts First"
+              : "Select Ghaats"}
+          </span>
+          <span className="text-gray-400">▼</span>
+        </div>
+
+        {isOpen && !disabled && (
+          <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-auto">
+            {/* Search */}
+            <div className="p-2 border-b sticky top-0 bg-white">
+              <input
+                type="text"
+                placeholder="Search Ghaats..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full p-2 border rounded text-sm"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+
+            {/* Select All Checkbox */}
+            <div className="p-2 border-b bg-gray-50">
+              <label className="flex items-center gap-2 p-2 hover:bg-gray-100 cursor-pointer rounded font-semibold">
+                <input
+                  type="checkbox"
+                  checked={
+                    selectedGhats.length === filteredGhats.length &&
+                    filteredGhats.length > 0
+                  }
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      const allFiltered = filteredGhats.map((g) => g.id);
+                      onChange([...new Set([...selectedGhats, ...allFiltered])]);
+                    } else {
+                      const filteredIds = filteredGhats.map((g) => g.id);
+                      onChange(selectedGhats.filter((id) => !filteredIds.includes(id)));
+                    }
+                  }}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <span className="text-sm text-blue-700">
+                  Select All {searchTerm && `(${filteredGhats.length} filtered)`}
+                </span>
+              </label>
+            </div>
+
+            {/* List */}
+            <div className="p-2">
+              {filteredGhats.length === 0 ? (
+                <div className="text-center text-gray-500 py-2">No ghats found</div>
+              ) : (
+                filteredGhats.map((g) => (
+                  <label
+                    key={g.id}
+                    className="flex items-center gap-2 p-2 hover:bg-gray-100 cursor-pointer rounded"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedGhats.includes(g.id)}
+                      onChange={() => handleToggle(g.id)}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                    <span className="text-sm">{g.ghaat_name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Error (API uses ghat_ids) */}
+      {errors?.ghat_ids && (
+        <p className="text-red-500 text-sm mt-1">{errors.ghat_ids[0]}</p>
+      )}
+    </div>
+  );
+}
+
+export default function Usermanagment() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.tab === "manage") {
+      setView("manage");
+    }
+  }, [location]);
+
+  const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(false);
+  const [view, setView] = useState("create"); // default tab
+  const [errors, setErrors] = useState({}); // used for create user API errors
+  const [tehsils, setTehsils] = useState([]);
+
+  /* ---------- role state ---------- */
+  const [form, setForm] = useState({ roleName: "" });
+  const [roles, setRoles] = useState([]);
+  const [showPerms, setShowPerms] = useState(true); // 👁 toggle for perms
+
+  const [districts, setDistricts] = useState([]);
+  const [designation, setDesignation] = useState([]);
+
+  const [editModal, setEditModal] = useState(false);
+  const [editData, setEditData] = useState({ id: null, name: "" });
+
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState(null);
+
+  const [selectedDistrict, setSelectedDistrict] = useState(null);
+  const [loadingTehsils, setLoadingTehsils] = useState(false);
+
+  const [vendorDistricts, setVendorDistricts] = useState([]);
+
+  const [ghats, setGhats] = useState([]);
+  const [loadingGhats, setLoadingGhats] = useState(false);
+
+  /* ---------- user state (Create User form) ---------- */
+  const [userForm, setUserForm] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    role: "",
+    district: "", // for create user it's single district name
+    designation: "",
+    contact: "",
+    tehsil: "",
+    district_code: "",
+    ghats: [], // not used for create user
+  });
+  const [users, setUsers] = useState([]);
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const [authUser, setAuthUser] = useState(null);
+
+  /* ---------- vendor state (separate) ---------- */
+  const [vendorForm, setVendorForm] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    district: [], // array of district names for vendor
+    contact: "",
+    ghats: [], // array of ghat IDs
+  });
+  const [vendorErrors, setVendorErrors] = useState({});
+  const [vendorLoading, setVendorLoading] = useState(false);
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user"));
+    setAuthUser(user);
+
+    // If role_id is 1 (district_nodal), auto-set district for create-user form (not vendor)
+    if (user?.role_id === 1 && user?.district_id) {
+      setUserForm((prev) => ({
+        ...prev,
+        district_code: user.district_id,
+      }));
+
+      fetchTehsils(user.district_id); // 👈 fetch tehsils directly for create user
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchVendorDistricts = async () => {
+      try {
+        const { data } = await api.get("/district-list");
+        if (data?.data) setVendorDistricts(data.data);
+      } catch (err) {
+        console.error("Failed to fetch vendor districts:", err);
+      }
+    };
+
+    fetchVendorDistricts();
+  }, []);
+
+  useEffect(() => {
+    const fetchDistricts = async () => {
+      try {
+        const isAdmin = authUser?.role_id === null;
+
+        const { data } = await api.get("/district-list", {
+          params: isAdmin ? { excludeAssigned: true } : {},
+        });
+
+        if (data?.data) setDistricts(data.data);
+      } catch (err) {
+        console.error("Failed to fetch districts:", err);
+      }
+    };
+
+    if (authUser) fetchDistricts();
+  }, [authUser]);
+
+  useEffect(() => {
+    const fetchDesignation = async () => {
+      try {
+        const { data } = await api.get("/designation");
+        if (data?.data) setDesignation(data.data);
+      } catch (err) {
+        console.error("Failed to fetch designation:", err);
+      }
+    };
+
+    fetchDesignation();
+  }, []);
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const { data } = await api.get("/roles");
+        if (data?.data) setRoles(data.data);
+      } catch (err) {
+        console.error("Failed to load roles:", err);
+      }
+    };
+
+    fetchRoles();
+  }, []);
+
+  // Fetch Ghats for vendor when vendor view active and vendorForm.district changes
+  useEffect(() => {
+    const fetchGhats = async () => {
+      if (view === "vendor" && vendorForm.district.length > 0) {
+        setLoadingGhats(true);
+        try {
+          // Get district IDs from selected district names
+          const districtIds = vendorForm.district
+            .map((distName) => {
+              return vendorDistricts.find((d) => d.district_name === distName)
+                ?.id;
+            })
+            .filter(Boolean);
+
+          const { data } = await api.post("/user-district-ghat", {
+            district_id: districtIds,
+          });
+
+          if (data?.data) {
+            setGhats(data.data);
+          } else {
+            setGhats([]);
+          }
+        } catch (err) {
+          console.error("Failed to fetch ghats:", err);
+        } finally {
+          setLoadingGhats(false);
+        }
+      } else {
+        setGhats([]);
+        setVendorForm((prev) => ({ ...prev, ghats: [] }));
+      }
+    };
+
+    fetchGhats();
+  }, [vendorForm.district, view, vendorDistricts]);
+
+  /* ---------- handlers for vendor form (separate) ---------- */
+  const handleVendorFieldChange = (e) => {
+    const { name, value } = e.target;
+    setVendorForm((prev) => ({ ...prev, [name]: value }));
+
+    // Clear vendor error for that field
+    setVendorErrors((prev) => {
+      if (!prev) return {};
+      const copy = { ...prev };
+      if (name === "fullName") delete copy.name;
+      else if (name === "confirmPassword") delete copy.password_confirmation;
+      else delete copy[name];
+      return copy;
+    });
+  };
+
+  const handleVendorDistrictChange = (selected) => {
+    setVendorForm((prev) => ({ ...prev, district: selected }));
+    // Clear district_ids vendor error
+    setVendorErrors((prev) => {
+      if (!prev) return {};
+      const copy = { ...prev };
+      delete copy.district_ids;
+      return copy;
+    });
+  };
+
+  const handleVendorGhatChange = (selected) => {
+    setVendorForm((prev) => ({ ...prev, ghats: selected }));
+    // Clear ghat_ids vendor error
+    setVendorErrors((prev) => {
+      if (!prev) return {};
+      const copy = { ...prev };
+      delete copy.ghat_ids;
+      return copy;
+    });
+  };
+
+  /* ---------- role helpers ---------- */
+  const onRoleChange = (e) => setForm({ roleName: e.target.value });
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user")); // assume login pe yeh save hota h
+    setAuthUser(user);
+  }, []);
+
+  const addRole = async () => {
+    const name = form.roleName.trim();
+    if (!name) return alert("Enter role name");
+
+    try {
+      const { data } = await api.post("/roles", { name });
+
+      // Add newly created role to list
+      setRoles([...roles, data.data]);
+      setForm({ roleName: "" });
+      toast.success("Role added successfully!");
+    } catch (err) {
+      if (err.response?.data?.errors?.name) {
+        toast.error(err.response.data.errors.name[0]);
+      } else {
+        toast.error("Failed to add role");
+      }
+    }
+  };
+
+  const openEditModal = (role) => {
+    setEditData({ id: role.id, name: role.name });
+    setEditModal(true);
+  };
+
+  const updateRole = async () => {
+    try {
+      const { data } = await api.put(`/roles/${editData.id}`, {
+        name: editData.name,
+      });
+      const updatedRoles = roles.map((r) =>
+        r.id === editData.id ? data.role : r
+      );
+      setRoles(updatedRoles);
+      setEditModal(false);
+      toast.success("Role updated successfully!");
+    } catch (err) {
+      toast.error("Failed to update role");
+    }
+  };
+
+  const confirmDeleteRole = async () => {
+    try {
+      await api.delete(`/roles/${roleToDelete.id}`);
+      setRoles(roles.filter((r) => r.id !== roleToDelete.id));
+      toast.success("Role deleted successfully!");
+    } catch (err) {
+      toast.error("Failed to delete role");
+    } finally {
+      setDeleteModal(false);
+      setRoleToDelete(null);
+    }
+  };
+
+  /* ---------- user helpers (create user) ---------- */
+  // Map local form field name to API error key for create user
+  const mapFieldToErrorKey = (name) => {
+    if (name === "fullName") return "name";
+    if (name === "confirmPassword") return "password_confirmation";
+    if (name === "contact") return "number";
+    return name;
+  };
+
+  // Generic field change handler that also clears API validation error for create user
+  const onUserChange = (e) => {
+    const { name, value } = e.target;
+
+    // handle district selection by name in non-vendor create tab
+    if (name === "district" && value) {
+      const selected = districts.find((d) => d.district_name === value);
+
+      if (selected) {
+        setSelectedDistrict(selected);
+        setLoadingTehsils(true); // Show loading state for tehsils
+
+        setUserForm((prevState) => ({
+          ...prevState,
+          district_code: selected.id,
+          district: value,
+          tehsil: "", // Reset tehsil when district changes
+        }));
+
+        // Fetch tehsils for the selected district
+        fetchTehsils(selected.id);
+
+        // clear district related API error for create user
+        setErrors((prev) => {
+          if (!prev) return {};
+          const copy = { ...prev };
+          delete copy.district_id;
+          delete copy.district_ids;
+          return copy;
+        });
+      }
+      return;
+    }
+
+    // update value
+    setUserForm((prevState) => ({
+      ...prevState,
+      [name]: value,
+    }));
+
+    // clear corresponding API error
+    const apiKey = mapFieldToErrorKey(name);
+    setErrors((prev) => {
+      if (!prev) return {};
+      const copy = { ...prev };
+      delete copy[apiKey];
+      return copy;
+    });
+  };
+
+  const fetchTehsils = async (districtCode) => {
+    try {
+      const res = await api.get(`/get-tehsils`, {
+        params: { district_code: Number(districtCode) },
+      });
+      setTehsils(Array.isArray(res.data.data) ? res.data.data : []);
+    } catch (error) {
+      console.error("Failed to fetch tehsils:", error);
+      setTehsils([]);
+      toast.error("Could not load tehsils.");
+    } finally {
+      setLoadingTehsils(false);
+    }
+  };
+
+  const addUser = () => {
+    const vals = Object.values(userForm).map((v) =>
+      typeof v === "string" ? v.trim() : v
+    );
+    if (
+      vals.some(
+        (v) => v === "" || v === null || (Array.isArray(v) && v.length === 0)
+      )
+    )
+      return alert("Fill all fields");
+    if (userForm.password !== userForm.confirmPassword)
+      return alert("Passwords do not match");
+    if (!userForm.district_code) return alert("Please select a district");
+
+    // Add user with the district_code instead of district_name
+    setUsers([...users, userForm]);
+    setUserForm({
+      fullName: "",
+      email: "",
+      district: "", // Reset to empty
+      district_code: "", // Reset district_code
+      tehsil: "", // Reset tehsil
+      designation: "",
+      role: "",
+      password: "",
+      confirmPassword: "",
+    });
+    setView("manage");
+  };
+
+  const [userLoading, setUserLoading] = useState(false);
+  const [userList, setUserList] = useState([]);
+
+  useEffect(() => {
+    if (view === "manage") {
+      setUserLoading(true);
+      api
+        .get("/user-list")
+        .then((res) => {
+          setUserList(res.data?.data || []);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch users", err);
+        })
+        .finally(() => {
+          setUserLoading(false);
+        });
+    }
+  }, [view]);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentUsers = userList.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(userList.length / itemsPerPage);
+
+  // for popup
+  const [showPopup, setShowPopup] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState(null);
+
+  const closePopup = () => {
+    setSelectedUserId(null);
+    setShowPopup(false);
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      const res = await api.delete(`/user-delete/${selectedUserId}`);
+      console.log("User deleted:", res.data);
+
+      setUserList((prevList) =>
+        prevList.filter((user) => user.id !== selectedUserId)
+      );
+
+      if (user?.role_id === 1) {
+        toast.success("Ghat Incharge deleted successfully!");
+      } else {
+        toast.success("User deleted successfully!");
+      }
+
+      setShowPopup(false); // Close the popup
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      toast.error("Failed to delete user!");
+    }
+  };
+
+  const getPaginationButtons = () => {
+    const buttons = [];
+    const maxVisibleButtons = 5;
+
+    if (totalPages <= maxVisibleButtons) {
+      for (let i = 1; i <= totalPages; i++) {
+        buttons.push(i);
+      }
+    } else {
+      // Always show first page
+      buttons.push(1);
+
+      // Calculate range around current page
+      let startPage = Math.max(2, currentPage - 1);
+      let endPage = Math.min(totalPages - 1, currentPage + 1);
+
+      // Add ellipsis if needed after first page
+      if (startPage > 2) {
+        buttons.push("...");
+      } else {
+        startPage = 2;
+      }
+
+      // Add page numbers around current page
+      for (let i = startPage; i <= endPage; i++) {
+        buttons.push(i);
+      }
+
+      // Add ellipsis if needed before last page
+      if (endPage < totalPages - 1) {
+        buttons.push("...");
+      }
+
+      // Always show last page
+      buttons.push(totalPages);
+    }
+
+    return buttons;
+  };
+
+  /* ====================================== JSX ====================================== */
+  return (
+    <div className="p-4 min-h-screen max-w-5xl mx-auto">
+      <h1 className="text-xl font-semibold text-center mb-6">
+        User Management
+      </h1>
+      <Toaster position="top-right" reverseOrder={false} />
+
+      {/* ---------- top nav ---------- */}
+      <div className="grid sm:grid-cols-3 md:grid-cols-3 items-center text-center gap-4 mb-8">
+        <button
+          onClick={() => {
+            // Reset create-user errors when switching to create
+            setErrors({});
+            setView("create");
+          }}
+          className={pill(view === "create")}
+        >
+          <IconWrap>
+            <FaUserPlus />
+          </IconWrap>
+          {authUser?.role_id === 1 ? "Create Ghat Incharge" : "Create User"}
+        </button>
+
+        <button
+          onClick={() => {
+            // Reset vendor errors/form when switching to vendor tab to avoid auto-submit or old errors
+            setVendorErrors({});
+            // Do NOT auto-submit on view change
+            setVendorForm((prev) => ({ ...prev }));
+            setView("vendor");
+          }}
+          className={pill(view === "vendor")}
+        >
+          <IconWrap>
+            <RiUserShared2Fill />
+          </IconWrap>
+          {authUser?.role_id === null ? "Create Vendor" : ""}
+        </button>
+
+        <button
+          onClick={() => {
+            setErrors({});
+            setVendorErrors({});
+            setView("manage");
+          }}
+          className={pill(view === "manage")}
+        >
+          <IconWrap>
+            <FaUsers />
+          </IconWrap>
+          {authUser?.role_id === 1 ? "Ghat Incharge List" : "User List"}
+        </button>
+      </div>
+
+      {editModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white rounded shadow p-6 w-80">
+            <h2 className="text-lg font-semibold mb-4">Edit Role</h2>
+            <input
+              value={editData.name}
+              onChange={(e) =>
+                setEditData({ ...editData, name: e.target.value })
+              }
+              className="w-full border p-2 rounded mb-4"
+              placeholder="Role Name"
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setEditModal(false)}
+                className="px-4 py-1 border rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={updateRole}
+                className="px-4 py-1 bg-green-600 text-white rounded"
+              >
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white rounded shadow p-6 w-80">
+            <h2 className="text-lg font-semibold mb-4">Delete Role</h2>
+            <p className="mb-4">
+              Are you sure you want to delete{" "}
+              <strong>{roleToDelete?.name}</strong>?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteModal(false)}
+                className="px-4 py-1 border rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteRole}
+                className="px-4 py-1 bg-red-600 text-white rounded"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =============== CREATE USER TAB =============== */}
+
+      <div>
+        {view === "create" && (
+          <div className="border rounded p-4">
+            <button
+              onClick={() => setView(null)}
+              className="flex items-center gap-1 text-sm mb-4"
+            >
+              {/* <IconWrap><FaArrowLeft /></IconWrap> Back */}
+            </button>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              {[
+                ["fullName", "Full Name *"],
+                ["email", "Email *"],
+              ].map(([name, label]) => (
+                <div key={name}>
+                  <label className="text-sm font-semibold block mb-1">
+                    {label}
+                  </label>
+                  <input
+                    name={name}
+                    value={userForm[name]}
+                    placeholder={`Enter ${label.replace(" *", "")}`}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (name === "fullName") {
+                        // Only letters and space for fullName
+                        if (/^[a-zA-Z\s.]*$/.test(value)) {
+                          onUserChange(e);
+                        }
+                      } else {
+                        // Allow full input for email and others
+                        onUserChange(e);
+                      }
+                    }}
+                    className={input}
+                  />
+                  {name === "fullName" && errors.name && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.name[0]}
+                    </p>
+                  )}
+                  {name === "email" && errors.email && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.email[0]}
+                    </p>
+                  )}
+                </div>
+              ))}
+
+              {authUser?.role_id !== 1 && (
+                <div>
+                  <label className="text-sm font-semibold block mb-1">
+                    District *
+                  </label>
+                  <select
+                    name="district"
+                    value={userForm.district}
+                    onChange={onUserChange}
+                    className={input}
+                  >
+                    <option value="">Select District</option>
+                    {districts.map((d) => (
+                      <option key={d.district_code} value={d.district_name}>
+                        {d.district_name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.district_id && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.district_id[0]}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="text-sm font-semibold block mb-1">
+                  Tehsil *
+                </label>
+                <select
+                  name="tehsil"
+                  value={userForm.tehsil}
+                  onChange={onUserChange}
+                  className={input}
+                  disabled={!userForm.district_code || loadingTehsils}
+                >
+                  <option value="">Select Tehsil</option>
+                  {loadingTehsils ? (
+                    <option>Loading tehsils...</option>
+                  ) : tehsils.length > 0 ? (
+                    tehsils.map((tehsil) => (
+                      <option
+                        key={tehsil.tehsil_code}
+                        value={tehsil.tehsil_code}
+                      >
+                        {tehsil.tehsil_name}
+                      </option>
+                    ))
+                  ) : (
+                    <option disabled>
+                      No tehsils available for this district
+                    </option>
+                  )}
+                </select>
+                {errors.tehsil_id && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.tehsil_id[0]}
+                  </p>
+                )}
+              </div>
+
+              {authUser?.role_id !== 1 && (
+                <div>
+                  <label className="text-sm font-semibold block mb-1">
+                    Designation *
+                  </label>
+                  <select
+                    name="designation"
+                    value={userForm.designation}
+                    onChange={onUserChange}
+                    className={input}
+                  >
+                    <option value="">Select Dsignation</option>
+                    {designation
+                      .filter((d) => {
+                        // If District Nodal, only allow Ghaat Nodal (id = 2)
+                        if (authUser?.role_id === 1) return d.id === 2;
+                        return true; // For others, show all
+                      })
+                      .map((d) => (
+                        <option key={d.id} value={d.name}>
+                          {d.name}
+                        </option>
+                      ))}
+                  </select>
+                  {errors.designation_id && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.designation_id[0]}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {authUser?.role_id !== 1 && (
+                <div>
+                  <label className="text-sm font-semibold block mb-1">
+                    Assign Role *
+                  </label>
+                  <select
+                    name="role"
+                    value={userForm.role}
+                    onChange={onUserChange}
+                    className={input}
+                  >
+                    <option value="">Select Role</option>
+                    {roles
+                      .filter(
+                        (r) =>
+                          r &&
+                          r.name &&
+                          (r.name === "district_nodal" ||
+                            r.name === "ghaat_nodal")
+                      )
+                      .map((r, i) => (
+                        <option key={i} value={r.name}>
+                          {r.name
+                            .split("_")
+                            .map(
+                              (word) =>
+                                word.charAt(0).toUpperCase() + word.slice(1)
+                            )
+                            .join(" ")}
+                        </option>
+                      ))}
+                  </select>
+                  {errors.role_id && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {errors.role_id[0]}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="text-sm font-semibold block mb-1">
+                  Contact No *
+                </label>
+                <input
+                  type="text"
+                  name="contact"
+                  value={userForm.contact}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (/^\d*$/.test(value) && value.length <= 10) {
+                      onUserChange(e);
+                    }
+                  }}
+                  className={input}
+                  placeholder="Enter Contact Number"
+                />
+                {errors.number && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.number[0]}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold block mb-1">
+                  New Password *
+                </label>
+                <div className="relative">
+                  <input
+                    placeholder="Enter New Password"
+                    type={showPass ? "text" : "password"}
+                    name="password"
+                    value={userForm.password}
+                    onChange={onUserChange}
+                    className={input}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(!showPass)}
+                    className="absolute top-2 right-3 text-lg text-gray-600 hover:text-indigo-600"
+                  >
+                    {showPass ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.password[0]}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold block mb-1">
+                  Confirm Password *
+                </label>
+                <div className="relative">
+                  <input
+                    placeholder="Enter Confirm Password"
+                    type={showConfirm ? "text" : "password"}
+                    name="confirmPassword"
+                    value={userForm.confirmPassword}
+                    onChange={onUserChange}
+                    className={input}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm(!showConfirm)}
+                    className="absolute top-2 right-3 text-lg text-gray-600 hover:text-indigo-600"
+                  >
+                    {showConfirm ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+                {errors.password_confirmation && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.password_confirmation[0]}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-center">
+              <button
+                disabled={loading}
+                onClick={async () => {
+                  setLoading(true);
+                  try {
+                    const isDistrictNodal = authUser?.role_id === 1;
+
+                    const roleId = isDistrictNodal
+                      ? roles.find((r) => r.name === "ghaat_nodal")?.id
+                      : roles.find((r) => r.name === userForm.role)?.id;
+
+                    const districtId = isDistrictNodal
+                      ? authUser?.district_id
+                      : districts.find(
+                          (d) => d.district_name === userForm.district
+                        )?.id;
+
+                    const designationId = isDistrictNodal
+                      ? 2 // ✅ Force designation ID to 2 for ghat nodal
+                      : designation.find((d) => d.name === userForm.designation)
+                          ?.id;
+
+                    const payload = {
+                      name: userForm.fullName,
+                      email: userForm.email,
+                      password: userForm.password,
+                      password_confirmation: userForm.confirmPassword,
+                      role_id: roleId,
+                      tehsil_id: parseInt(userForm.tehsil),
+                      district_id: districtId,
+                      designation_id: designationId,
+                      number: userForm.contact,
+                    };
+
+                    console.log("PAYLOAD", payload);
+
+                    await api.post("/users", payload);
+
+                    toast.success("User created successfully ✅");
+
+                    setUserForm({
+                      fullName: "",
+                      email: "",
+                      password: "",
+                      confirmPassword: "",
+                      role: "",
+                      district: "",
+                      designation: "",
+                      contact: "",
+                    });
+
+                    setErrors({});
+                    setView("manage");
+                  } catch (error) {
+                    const apiErrors = error.response?.data?.errors || {};
+                    setErrors(apiErrors);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className={`mt-6 px-8 py-2 font-semibold text-white rounded ${
+                  loading ? "bg-gray-400" : "bg-yellow-400"
+                }`}
+              >
+                {loading ? "Creating..." : "Create User"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* =============== VENDOR TAB =============== */}
+      {view === "vendor" && (
+        <div className="border rounded p-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            {[
+              ["fullName", "Full Name *"],
+              ["email", "Email *"],
+            ].map(([name, label]) => (
+              <div key={name}>
+                <label className="text-sm font-semibold block mb-1">
+                  {label}
+                </label>
+                <input
+                  name={name}
+                  value={name === "fullName" ? vendorForm.fullName : vendorForm.email}
+                  placeholder={`Enter ${label.replace(" *", "")}`}
+                  onChange={(e) => handleVendorFieldChange({...e, target:{...e.target, name: name === "fullName" ? "fullName" : "email"}})}
+                  className={input}
+                />
+                {/* Map API errors: name -> fullName, email -> email */}
+                {name === "fullName" && vendorErrors.name && (
+                  <p className="text-red-500 text-sm mt-1">{vendorErrors.name[0]}</p>
+                )}
+                {name === "email" && vendorErrors.email && (
+                  <p className="text-red-500 text-sm mt-1">{vendorErrors.email[0]}</p>
+                )}
+              </div>
+            ))}
+
+            {/* ✅ Multi-Select District Component */}
+            {authUser?.role_id !== 1 && (
+              <div>
+                <DistrictMultiSelectWithCheckbox
+                  districts={vendorDistricts}
+                  selectedDistricts={vendorForm.district}
+                  onChange={handleVendorDistrictChange}
+                  errors={vendorErrors}
+                />
+                {/* Also show generic district_ids validation if present */}
+                {vendorErrors.district_ids && (
+                  <p className="text-red-500 text-sm mt-1">{vendorErrors.district_ids[0]}</p>
+                )}
+              </div>
+            )}
+
+            {/* ✅ Multi-Select Ghat Component */}
+            {authUser?.role_id !== 1 && (
+              <div>
+                <GhatMultiSelectWithCheckbox
+                  ghats={ghats}
+                  selectedGhats={vendorForm.ghats}
+                  onChange={handleVendorGhatChange}
+                  errors={vendorErrors}
+                  disabled={vendorForm.district.length === 0 || loadingGhats}
+                />
+                {vendorErrors.ghat_ids && (
+                  <p className="text-red-500 text-sm mt-1">{vendorErrors.ghat_ids[0]}</p>
+                )}
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm font-semibold block mb-1">
+                Contact No *
+              </label>
+              <input
+                type="text"
+                name="contact"
+                value={vendorForm.contact}
+                onChange={(e) =>
+                  handleVendorFieldChange({ ...e, target: { ...e.target, name: "contact" } })
+                }
+                className={input}
+                placeholder="Enter Contact Number"
+              />
+              {vendorErrors.number && (
+                <p className="text-red-500 text-sm mt-1">{vendorErrors.number[0]}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold block mb-1">
+                New Password *
+              </label>
+              <div className="relative">
+                <input
+                  placeholder="Enter New Password"
+                  type={showPass ? "text" : "password"}
+                  name="password"
+                  value={vendorForm.password}
+                  onChange={(e) =>
+                    handleVendorFieldChange({ ...e, target: { ...e.target, name: "password" } })
+                  }
+                  className={input}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(!showPass)}
+                  className="absolute top-2 right-3 text-lg text-gray-600 hover:text-indigo-600"
+                >
+                  {showPass ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
+              {vendorErrors.password && (
+                <p className="text-red-500 text-sm mt-1">{vendorErrors.password[0]}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold block mb-1">
+                Confirm Password *
+              </label>
+              <div className="relative">
+                <input
+                  placeholder="Enter Confirm Password"
+                  type={showConfirm ? "text" : "password"}
+                  name="confirmPassword"
+                  value={vendorForm.confirmPassword}
+                  onChange={(e) =>
+                    handleVendorFieldChange({ ...e, target: { ...e.target, name: "confirmPassword" } })
+                  }
+                  className={input}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute top-2 right-3 text-lg text-gray-600 hover:text-indigo-600"
+                >
+                  {showConfirm ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
+              {vendorErrors.password_confirmation && (
+                <p className="text-red-500 text-sm mt-1">{vendorErrors.password_confirmation[0]}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            <button
+              disabled={vendorLoading}
+              onClick={async () => {
+                // Only submit when button clicked
+                setVendorLoading(true);
+                try {
+                  const vendorRole = roles.find((r) => r.name === "Vendor");
+                  const vendorDesignation = designation.find(
+                    (d) => d.name.toLowerCase() === "vendor"
+                  );
+
+                  // Convert district NAMES to IDs (string array required by backend)
+                  const districtIds = vendorForm.district
+                    .map((distName) => {
+                      const found = vendorDistricts.find(
+                        (d) => d.district_name === distName
+                      );
+                      return found ? String(found.id) : null;
+                    })
+                    .filter(Boolean);
+
+                  const payload = {
+                    name: vendorForm.fullName,
+                    email: vendorForm.email,
+                    password: vendorForm.password,
+                    password_confirmation: vendorForm.confirmPassword,
+                    role_id: vendorRole?.id,
+                    district_ids: districtIds,
+                    ghat_ids: vendorForm.ghats.map(String),
+                    designation_id: vendorDesignation?.id,
+                    number: vendorForm.contact,
+                  };
+
+                  console.log("VENDOR PAYLOAD", payload);
+
+                  await api.post("/create-vendor", payload);
+
+                  toast.success("Vendor created successfully ✅");
+
+                  setVendorForm({
+                    fullName: "",
+                    email: "",
+                    password: "",
+                    confirmPassword: "",
+                    district: [],
+                    contact: "",
+                    ghats: [],
+                  });
+
+                  setVendorErrors({});
+                  setView("manage");
+                } catch (error) {
+                  // API returns validation errors in data.data (example provided)
+                  const apiErrors =
+                    error.response?.data?.data ||
+                    error.response?.data?.errors ||
+                    {};
+                  // Map backend keys exactly to vendorErrors state
+                  setVendorErrors(apiErrors);
+
+                  console.log("VALIDATION ERRORS:", apiErrors);
+
+                  // Show first error as toast
+                  if (Object.keys(apiErrors).length > 0) {
+                    const firstError = Object.values(apiErrors)[0];
+                    if (Array.isArray(firstError)) {
+                      toast.error(firstError[0]);
+                    } else {
+                      toast.error(String(firstError));
+                    }
+                  } else {
+                    toast.error(
+                      error.response?.data?.message || "Failed to create vendor"
+                    );
+                  }
+                } finally {
+                  setVendorLoading(false);
+                }
+              }}
+              className={`mt-6 px-8 py-2 font-semibold text-white rounded ${
+                vendorLoading ? "bg-gray-400" : "bg-yellow-400"
+              }`}
+            >
+              {vendorLoading ? "Creating..." : "Create Vendor"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* =============== MANAGE USERS TAB =============== */}
+      {view === "manage" && (
+        <div className="border rounded p-4">
+          <button
+            onClick={() => setView(null)}
+            className="flex items-center gap-1 text-sm mb-4"
+          >
+            {/* <IconWrap><FaArrowLeft /></IconWrap> Back */}
+          </button>
+
+          <div className="flex flex-col sm:flex-row justify-between items-center  mb-6 gap-4">
+            <h3 className="text-xl sm:text-2xl font-bold text-blue-800 text-center sm:text-left">
+              Registered User Lists
+            </h3>
+            <button
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 sm:px-4 sm:py-2 rounded-md transition-colors w-full sm:w-auto justify-center sm:justify-end"
+              onClick={() => {
+                if (!userList || userList.length === 0) {
+                  alert("No users to export.");
+                  return;
+                }
+
+                // CSV Headers
+                const headers = [
+                  "Sr.No",
+                  "Full Name",
+                  "Email",
+                  "District",
+                  "Designation",
+                  "Role",
+                ];
+
+                // CSV Rows
+                const rows = userList.map((u, idx) => [
+                  idx + 1,
+                  `"${u.name}"`,
+                  `"${u.email}"`,
+                  `"${u.district?.district_name || "N/A"}"`,
+                  `"${u.designation?.name || "N/A"}"`,
+                  `"${
+                    u.role?.name === "ghaat_nodal"
+                      ? "Ghaat Incharge"
+                      : u.role?.name === "district_nodal"
+                      ? "Ghat Incharge"
+                      : u.role?.name || "N/A"
+                  }"`,
+                ]);
+
+                // Combine headers + rows
+                const csvContent = [
+                  headers.join(","),
+                  ...rows.map((row) => row.join(",")),
+                ].join("\n");
+
+                // Trigger download
+                const blob = new Blob([csvContent], {
+                  type: "text/csv;charset=utf-8;",
+                });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute(
+                  "download",
+                  `user_report_${new Date().toISOString().slice(0, 10)}.csv`
+                );
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+            >
+              <FaDownload className="text-sm sm:text-base" />
+              <span className="text-sm sm:text-base">Export Report</span>
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm border border-gray-200">
+              <thead className="bg-gray-100 text-center">
+                <tr>
+                  {[
+                    "S.No",
+                    "Full Name",
+                    "Email",
+                    ...(user?.role_id !== 1 ? ["District"] : []),
+                    "Designation",
+                    "Role",
+                    "Actions",
+                  ].map((h) => (
+                    <Th
+                      key={h}
+                      className="px-4 py-2 text-sm font-semibold text-gray-700 border"
+                    >
+                      {h}
+                    </Th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="text-center">
+                {userLoading ? (
+                  <tr>
+                    <Td colSpan={7} className="py-3 text-slate-500">
+                      Loading users...
+                    </Td>
+                  </tr>
+                ) : userList.length === 0 ? (
+                  <tr>
+                    <Td colSpan={7} className="py-3">
+                      No users
+                    </Td>
+                  </tr>
+                ) : (
+                  currentUsers.map((u, i) => {
+                    let roleLabel = "N/A";
+                    if (u.role?.name === "ghaat_nodal")
+                      roleLabel = "Ghat Incharge";
+                    else if (u.role?.name === "district_nodal")
+                      roleLabel = "Ghat Incharge";
+                    else if (u.role?.name) roleLabel = u.role.name;
+
+                    return (
+                      <tr key={u.id || i} className="border-t hover:bg-gray-50">
+                        <Td className="px-4 py-2">
+                          {indexOfFirstItem + i + 1}
+                        </Td>
+                        <Td className="px-4 py-2">{u.name}</Td>
+                        <Td className="px-4 py-2">{u.email}</Td>
+                        {user?.role_id !== 1 && (
+                          <Td className="px-4 py-2">
+                            {u.district?.district_name || "N/A"}
+                          </Td>
+                        )}
+
+                        <Td className="px-4 py-2">
+                          {u.designation?.name || "N/A"}
+                        </Td>
+                        <Td className="px-4 py-2">{roleLabel}</Td>
+                        <Td className="px-4 py-2">
+                          <div className="flex justify-center gap-3">
+                            <button
+                              onClick={() => {
+                                navigate(
+                                  `/dashboard/usermanagment/userlistview/${u.id}`
+                                );
+                              }}
+                              className="text-blue-600 hover:text-blue-800"
+                              title="View"
+                            >
+                              <FaEye />
+                            </button>
+                            <button
+                              onClick={() => {
+                                navigate(
+                                  `/dashboard/usermanagment/userlistedit/${u.id}`
+                                );
+                              }}
+                              className="text-green-600 hover:text-green-800"
+                              title="Edit"
+                            >
+                              <FaEdit />
+                            </button>
+                            <button
+                              onClick={() => {
+                                console.log(
+                                  "Selected user ID for delete:",
+                                  u.id
+                                );
+                                setSelectedUserId(u.id);
+                                setShowPopup(true);
+                              }}
+                              className="text-red-600 hover:text-red-800"
+                              title="Delete"
+                            >
+                              <FaTrash />
+                            </button>
+
+                            {showPopup && (
+                              <div className="fixed inset-0  backdrop-blur-sm flex items-center justify-center z-50">
+                                <div className="relative w-full max-w-md bg-white rounded-xl sm:mx-0 mx-5 p-6 shadow-md">
+                                  {/* Close button */}
+                                  <button
+                                    onClick={closePopup}
+                                    className="absolute top-3 right-4 text-gray-400 hover:text-gray-600 text-3xl"
+                                  >
+                                    &times;
+                                  </button>
+
+                                  {/* Title */}
+                                  <h2 className="text-center text-2xl font-semibold text-purple-600 mb-3">
+                                    Are you sure?
+                                  </h2>
+
+                                  {/* Message */}
+                                  <p className="text-center text-xl text-gray-600 mb-6">
+                                    Do you really want to delete this user?
+                                  </p>
+
+                                  {/* Action buttons */}
+                                  <div className="flex justify-center gap-4">
+                                    <button
+                                      onClick={closePopup}
+                                      className="px-4 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      onClick={handleConfirmDelete}
+                                      className="px-4 py-2 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition"
+                                    >
+                                      Yes, Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </Td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+            {userList.length > itemsPerPage && (
+              <div className="flex items-center justify-center sm:justify-end mt-4 p-4">
+                <nav className="flex items-center gap-1">
+                  <button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(prev - 1, 1))
+                    }
+                    disabled={currentPage === 1}
+                    className={`p-2 rounded-md ${
+                      currentPage === 1
+                        ? "text-gray-400 cursor-not-allowed"
+                        : "text-blue-700 hover:bg-blue-50"
+                    } transition-colors`}
+                  >
+                    <FaChevronLeft />
+                  </button>
+
+                  <div className="flex gap-1">
+                    {getPaginationButtons().map((btn, idx) =>
+                      btn === "..." ? (
+                        <span
+                          key={`ellipsis-${idx}`}
+                          className="px-2 text-gray-500 select-none flex items-center"
+                        >
+                          ...
+                        </span>
+                      ) : (
+                        <button
+                          key={btn}
+                          onClick={() => setCurrentPage(btn)}
+                          className={`min-w-[40px] h-10 rounded-full flex items-center justify-center ${
+                            currentPage === btn
+                              ? "bg-blue-600 text-white font-medium"
+                              : "bg-white text-blue-700 hover:bg-blue-50"
+                          } transition-colors`}
+                        >
+                          {btn}
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                    }
+                    disabled={currentPage === totalPages}
+                    className={`p-2 rounded-md ${
+                      currentPage === totalPages
+                        ? "text-gray-400 cursor-not-allowed"
+                        : "text-blue-700 hover:bg-blue-50"
+                    } transition-colors`}
+                  >
+                    <FaChevronRight />
+                  </button>
+                </nav>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
