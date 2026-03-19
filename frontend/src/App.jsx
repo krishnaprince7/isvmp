@@ -1,6 +1,11 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom'; // Yahan se Router hata diya
 
+
+// Another Routes
+
+import ScrollToTop from './components/utils/ScrollToTop';
+
 // Aapke components import kar lijiye
 import Layout from './components/Admin/Layout';
 import DashboardOverview from './components/Admin/StateDashboard/DashboardOverview';
@@ -25,10 +30,22 @@ import DistrictAnalytics from './components/Admin/DistrictAnalytics';
 import AlertsNotifications from './components/Admin/AlertsNotifications/AlertsNotifications';
 import UserManagement from './components/Admin/UserManagement/UserManagement';
 import Settings from './components/Admin/SystemSettings/Settings';
+import VehicleOnboarding from './components/Admin/BusManagement/Submodules/VehicleOnboarding';
+import Documents from './components/Admin/BusManagement/Submodules/Documents';
+import DriverDetails from './components/Admin/BusManagement/Submodules/DriverDetails';
+import SafetyEquipment from './components/Admin/BusManagement/Submodules/SafetyEquipment';
+import SchoolAttachment from './components/Admin/BusManagement/Submodules/SchoolAttachment';
+import Affidavit from './components/Admin/BusManagement/Submodules/Affidavit';
+
+
+
 
 const App = () => {
   return (
     // Yahan Router ka tag hata diya gaya hai kyunki wo index.jsx me already hai
+    <>
+
+    <ScrollToTop/>
     <Routes>
       <Route path="/" element={<Layout />}>
         
@@ -47,6 +64,13 @@ const App = () => {
         <Route path="school-management/register-vehicles-committee" element={<VehicleCommitte />} />
 
         <Route path="bus-management" element={<BusManagement />} />
+        <Route path="bus-management/register" element={<VehicleOnboarding />} />
+        <Route path="bus-management/register-documents" element={<Documents />} />
+        <Route path="bus-management/register-driver" element={<DriverDetails />} />
+        <Route path="bus-management/register-safety" element={<SafetyEquipment />} />
+        <Route path="bus-management/register-school" element={<SchoolAttachment />} />
+        <Route path="bus-management/register-affidavit" element={<Affidavit />} />
+
         <Route path="vendor-management" element={<Vendor />} />
         <Route path="compliance-monitoring" element={<ComplianceMonitoring />} />
         <Route path="/inspections" element={<Inspections />} />
@@ -60,6 +84,7 @@ const App = () => {
         
       </Route>
     </Routes>
+    </>
   );
 };
 

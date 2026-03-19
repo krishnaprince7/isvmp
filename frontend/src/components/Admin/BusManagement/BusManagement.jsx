@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search, Plus, Bus, ShieldCheck, ShieldAlert, ClipboardList } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const busData = [
   { vehicleNo: 'UP32 AB 1234', type: 'Standard', school: 'DPS Lucknow', district: 'Lucknow', fitnessExpiry: '2026-08-15', compliance: 92, status: 'Compliant' },
@@ -26,6 +27,8 @@ const getStatusStyles = (status) => {
 };
 
 const BusManagement = () => {
+
+  const navigate = useNavigate()
   return (
     <div className=" bg-slate-50 min-h-screen font-sans">
       
@@ -35,7 +38,11 @@ const BusManagement = () => {
           <h1 className="text-2xl font-bold text-slate-800">Bus Management</h1>
           <p className="text-slate-500 text-sm mt-1">Manage and monitor all registered school buses</p>
         </div>
-        <button className="bg-[#1e3a8a] hover:bg-blue-800 text-white px-4 py-2 rounded-md flex items-center gap-2 text-sm font-medium transition-colors shadow-sm">
+        <button
+        onClick={()=>{
+          navigate("/bus-management/register")
+        }}
+         className="bg-[#1e3a8a] hover:bg-blue-800 text-white px-4 py-2 rounded-md flex items-center gap-2 text-sm font-medium transition-colors shadow-sm">
           <Plus size={18} />
           Register Bus
         </button>
