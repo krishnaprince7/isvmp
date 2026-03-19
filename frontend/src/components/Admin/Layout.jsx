@@ -1,10 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import SideBar from './SideBar';
 
 const Layout = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setIsSidebarOpen(true); 
+      } else {
+        setIsSidebarOpen(false); 
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -13,8 +26,7 @@ const Layout = () => {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gray-50">
       
-      {/* Sidebar ko uski current state pass kar rahe hain */}
-      <SideBar isOpen={isSidebarOpen} />
+      <SideBar isOpen={isSidebarOpen} setSidebarOpen={setIsSidebarOpen} />
 
       <div className="flex flex-col flex-1 w-full overflow-hidden">
         <Header toggleSidebar={toggleSidebar} />
